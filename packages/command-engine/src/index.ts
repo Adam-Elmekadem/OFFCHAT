@@ -1,0 +1,10 @@
+export { CommandRegistry } from './CommandRegistry.js';
+export { CommandParser } from './CommandParser.js';
+export { HelpCommand } from './commands/HelpCommand.js';
+export { NickCommand } from './commands/NickCommand.js';
+export { OnlineCommand } from './commands/OnlineCommand.js';
+export { ConnectCommand } from './commands/ConnectCommand.js';
+export { HistoryCommand } from './commands/HistoryCommand.js';
+export { ClearCommand } from './commands/ClearCommand.js';
+export { ExitCommand } from './commands/ExitCommand.js';
+export type { ICommand, CommandContext, CommandResult, AppEvent } from './CommandRegistry.js';

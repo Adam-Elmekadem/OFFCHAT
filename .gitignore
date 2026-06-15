@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+coverage/
+.env
+*.db
+*.db-shm
+*.db-wal
+offchat-identity.json

@@ -1,0 +1,145 @@
+name: Build · Release · Deploy
+
+# Trigger: push a version tag like  git tag v1.0.1 && git push --tags
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write   # create GitHub Release + upload assets
+  pages:    write   # deploy to GitHub Pages
+  id-token: write   # OIDC for Pages
+
+env:
+  TAG: ${{ github.ref_name }}
+
+jobs:
+  # ── 1. Build Windows EXE ──────────────────────────────
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Package Windows EXE
+        working-directory: apps/cli
+        run: |
+          npx @yao-pkg/pkg . `
+            --targets node20-win-x64 `
+            --output offchat-win-x64.exe `
+            --compress GZip
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: offchat-win-x64
+          path: apps/cli/offchat-win-x64.exe
+          retention-days: 1
+
+  # ── 2. Create GitHub Release & upload assets ──────────
+  release:
+    name: Create Release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.gh_release.outputs.upload_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: offchat-win-x64
+          path: ./dist
+
+      - name: Get EXE size (MB)
+        id: size
+        run: |
+          BYTES=$(stat -c%s dist/offchat-win-x64.exe)
+          MB=$(echo "scale=1; $BYTES/1048576" | bc)
+          echo "mb=$MB" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: gh_release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/offchat-win-x64.exe
+          generate_release_notes: true
+          body: |
+            ## OFFCHAT ${{ env.TAG }}
+
+            ### Download
+            | Platform | File | Size |
+            |---|---|---|
+            | Windows x64 | `offchat-win-x64.exe` | ${{ steps.size.outputs.mb }} MB |
+            | Android | Coming soon | — |
+
+            ### Install
+            **Windows:** Download the `.exe` and run it in any terminal:
+            ```
+            offchat-win-x64.exe YourName
+            ```
+
+  # ── 3. Update website & deploy to GitHub Pages ────────
+  deploy-website:
+    name: Deploy Website
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: offchat-win-x64
+          path: ./dist
+
+      - name: Compute EXE size
+        id: size
+        run: |
+          BYTES=$(stat -c%s dist/offchat-win-x64.exe)
+          echo "mb=$(echo "scale=1; $BYTES/1048576" | bc)" >> $GITHUB_OUTPUT
+
+      - name: Write release-info.json
+        run: |
+          REPO="${{ github.repository }}"
+          TAG="${{ env.TAG }}"
+          cat > website/release-info.json <<EOF
+          {
+            "version": "${TAG}",
+            "released_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "github_releases_url": "https://github.com/${REPO}/releases/tag/${TAG}",
+            "windows": {
+              "url": "https://github.com/${REPO}/releases/download/${TAG}/offchat-win-x64.exe",
+              "available": true,
+              "size_mb": ${{ steps.size.outputs.mb }}
+            },
+            "android": {
+              "url": null,
+              "available": false
+            }
+          }
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

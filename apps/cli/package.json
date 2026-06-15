@@ -1,0 +1,37 @@
+{
+  "name": "@offchat/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "offchat": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --watch dist/index.js",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@offchat/application": "workspace:*",
+    "@offchat/command-engine": "workspace:*",
+    "@offchat/domain": "workspace:*",
+    "@offchat/protocol": "workspace:*",
+    "@offchat/security": "workspace:*",
+    "@offchat/storage": "workspace:*",
+    "@offchat/terminal-ui": "workspace:*",
+    "@offchat/transport-lan": "workspace:*",
+    "ink": "^5.0.1",
+    "react": "^18.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@yao-pkg/pkg": "^5.12.0"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "targets": ["node20-win-x64"],
+    "outputPath": "."
+  }
+}
