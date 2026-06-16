@@ -29,6 +29,10 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -44,15 +48,12 @@ jobs:
             --target=node20 `
             --format=esm `
             --external:react-devtools-core `
+            --loader:.wasm=binary `
             --outfile=bundle.mjs
 
-      - name: Package Windows EXE
+      - name: Compile Windows EXE
         working-directory: apps/cli
-        run: |
-          npx @yao-pkg/pkg bundle.mjs `
-            --targets node20-win-x64 `
-            --output offchat-win-x64.exe `
-            --compress GZip
+        run: bun build bundle.mjs --compile --outfile=offchat-win-x64.exe
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
