@@ -35,10 +35,20 @@ jobs:
       - name: Build all packages
         run: pnpm build
 
+      - name: Bundle CLI into single CJS file
+        working-directory: apps/cli
+        run: |
+          npx esbuild dist/index.js `
+            --bundle `
+            --platform=node `
+            --target=node20 `
+            --format=cjs `
+            --outfile=bundle.cjs
+
       - name: Package Windows EXE
         working-directory: apps/cli
         run: |
-          npx @yao-pkg/pkg . `
+          npx @yao-pkg/pkg bundle.cjs `
             --targets node20-win-x64 `
             --output offchat-win-x64.exe `
             --compress GZip
