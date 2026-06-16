@@ -41,14 +41,16 @@ jobs:
 
       - name: Bundle CLI into single ESM file
         working-directory: apps/cli
+        shell: bash
         run: |
-          pnpm exec esbuild dist/index.js `
-            --bundle `
-            --platform=node `
-            --target=node20 `
-            --format=esm `
-            --external:react-devtools-core `
-            --loader:.wasm=binary `
+          echo 'export default null;' > devtools-stub.mjs
+          pnpm exec esbuild dist/index.js \
+            --bundle \
+            --platform=node \
+            --target=node20 \
+            --format=esm \
+            "--alias:react-devtools-core=./devtools-stub.mjs" \
+            --loader:.wasm=binary \
             --outfile=bundle.mjs
 
       - name: Compile Windows EXE
