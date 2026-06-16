@@ -71,8 +71,16 @@ export async function buildContainer(
   const sendMessage = new SendMessage(crypto, storage, router, identity);
 
   lanTransport.onReceive(async (envelope, from) => {
-    await connectPeer.fromDiscovery(from, lanTransport);
-    await receiveMessage.handle(envelope, from);
+    try {
+      await connectPeer.fromDiscovery(from, lanTransport);
+      await receiveMessage.handle(envelope, from);
+    } catch (err) {
+      emit({ type: 'system-message', text: `recv error: ${String(err)}` });
+    }
+  });
+
+  lanTransport.on('recv-error', (err: Error) => {
+    emit({ type: 'system-message', text: `recv error: ${err.message}` });
   });
 
   lanTransport.on('peer-discovered', async (peer: import('@offchat/domain').PeerInfo) => {

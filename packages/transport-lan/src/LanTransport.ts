@@ -119,14 +119,16 @@ export class LanTransport extends EventEmitter implements ITransport {
         buf = buf.slice(4 + len);
         try {
           const envelope = deserializeEnvelope(payload);
+          // Look up the sender's real identity public key from discovered peers
+          const knownPeer = this.discoveredPeers.get(envelope.senderDeviceId);
           const from: PeerInfo = {
             deviceId: envelope.senderDeviceId,
             nickname: envelope.senderNickname,
             address: socket.remoteAddress ?? '',
             transport: 'lan',
-            publicKey: envelope.encryptionMetadata.ephemeralPublicKey,
+            publicKey: knownPeer?.publicKey ?? envelope.encryptionMetadata.ephemeralPublicKey,
           };
-          this.receiveHandler?.(envelope, from);
+          this.receiveHandler?.(envelope, from)?.catch(err => this.emit('recv-error', err));
         } catch {
           // drop malformed
         }

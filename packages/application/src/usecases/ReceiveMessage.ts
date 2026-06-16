@@ -26,7 +26,7 @@ export class ReceiveMessage {
 
   async handle(envelope: Envelope, from: PeerInfo): Promise<void> {
     const validationError = validateEnvelope(envelope);
-    if (validationError) return;
+    if (validationError) throw new Error(`envelope invalid: ${validationError}`);
 
     if (this.deduplicator.isDuplicate(envelope.envelopeId)) return;
     this.deduplicator.markSeen(envelope.envelopeId);
