@@ -1,9 +1,15 @@
 import { createSocket, type Socket } from 'node:dgram';
 import { EventEmitter } from 'node:events';
+import { networkInterfaces } from 'node:os';
 
 export const DISCOVERY_PORT = 41891;
-const BROADCAST_ADDR = '255.255.255.255';
 const ANNOUNCE_INTERVAL_MS = 3_000;
+
+function subnetBroadcast(ip: string, netmask: string): string {
+  const a = ip.split('.').map(Number);
+  const m = netmask.split('.').map(Number);
+  return a.map((b, i) => (b | (~(m[i] ?? 0) & 0xff))).join('.');
+}
 
 export interface AnnouncePacket {
   v: number;
@@ -68,8 +74,25 @@ export class LanDiscovery extends EventEmitter {
       publicKey: this.publicKeyHex,
     };
     const buf = Buffer.from(JSON.stringify(packet));
-    this.socket.send(buf, DISCOVERY_PORT, BROADCAST_ADDR, (err) => {
-      if (err) this.emit('error', err);
-    });
+
+    // Send the subnet broadcast (e.g. 10.237.101.255) from every
+    // non-loopback IPv4 interface. Subnet-directed broadcasts cross
+    // more routers/hotspots than the limited 255.255.255.255 broadcast.
+    const ifaces = Object.values(networkInterfaces())
+      .flat()
+      .filter((n): n is NonNullable<typeof n> =>
+        n !== undefined && n.family === 'IPv4' && !n.internal,
+      );
+
+    const targets = ifaces.length > 0 ? ifaces : [{ address: '0.0.0.0', netmask: '0.0.0.0' }];
+    for (const iface of targets) {
+      const bcast = subnetBroadcast(iface.address, iface.netmask);
+      const sock = createSocket({ type: 'udp4', reuseAddr: true });
+      sock.bind(0, iface.address === '0.0.0.0' ? undefined : iface.address, () => {
+        sock.setBroadcast(true);
+        sock.send(buf, DISCOVERY_PORT, bcast, () => sock.close());
+      });
+      sock.on('error', () => sock.close());
+    }
   }
 }
