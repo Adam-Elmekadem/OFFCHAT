@@ -13,6 +13,8 @@ export type AppEvent =
   | { type: 'system-message'; text: string }
   | { type: 'nick-changed'; nickname: string }
   | { type: 'peer-connected'; contact: Contact }
+  | { type: 'peer-found'; deviceId: string; nickname: string; transport: string; contact: Contact }
+  | { type: 'peer-lost'; deviceId: string }
   | { type: 'exit' };
 
 export interface CommandResult {

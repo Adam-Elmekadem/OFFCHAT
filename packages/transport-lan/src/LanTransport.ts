@@ -110,6 +110,8 @@ export class LanTransport extends EventEmitter implements ITransport {
 
   private handleIncoming(socket: Socket): void {
     let buf = Buffer.alloc(0);
+    let channelRegistered = false;
+
     socket.on('data', (chunk: Buffer) => {
       buf = Buffer.concat([buf, chunk]);
       while (buf.length >= 4) {
@@ -119,8 +121,17 @@ export class LanTransport extends EventEmitter implements ITransport {
         buf = buf.slice(4 + len);
         try {
           const envelope = deserializeEnvelope(payload);
-          // Look up the sender's real identity public key from discovered peers
           const knownPeer = this.discoveredPeers.get(envelope.senderDeviceId);
+
+          // Register the inbound socket as a bidirectional channel so the
+          // receiver can reply without opening a second TCP connection.
+          if (!channelRegistered && knownPeer && !this.peers.has(envelope.senderDeviceId)) {
+            const conn = { info: knownPeer, socket };
+            this.peers.set(envelope.senderDeviceId, conn);
+            socket.on('close', () => this.peers.delete(envelope.senderDeviceId));
+            channelRegistered = true;
+          }
+
           const from: PeerInfo = {
             deviceId: envelope.senderDeviceId,
             nickname: envelope.senderNickname,

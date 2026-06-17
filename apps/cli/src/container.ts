@@ -84,8 +84,8 @@ export async function buildContainer(
   });
 
   lanTransport.on('peer-discovered', async (peer: import('@offchat/domain').PeerInfo) => {
-    await connectPeer.fromDiscovery(peer, lanTransport);
-    emit({ type: 'system-message', text: `peer found: ${peer.nickname} [${peer.deviceId.slice(0, 8)}]` });
+    const contact = await connectPeer.fromDiscovery(peer, lanTransport);
+    emit({ type: 'peer-found', deviceId: peer.deviceId, nickname: peer.nickname, transport: peer.transport, contact });
   });
 
   const cmdRegistry = new CommandRegistry();
