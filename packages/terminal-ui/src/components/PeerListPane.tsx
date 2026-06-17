@@ -7,6 +7,7 @@ export interface KnownPeer {
   transport: string;
   isOnline: boolean;
   unreadCount: number;
+  publicKey: Uint8Array;
   lastMessage?: string;
   lastMessageAt?: number;
 }

@@ -76,6 +76,7 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
             transport: event.transport,
             isOnline: true,
             unreadCount: 0,
+            publicKey: event.contact.publicKey,
           }];
         });
       }
@@ -116,10 +117,15 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
   const selectPeer = useCallback((index: number) => {
     const peer = knownPeers[index - 1];
     if (!peer) { addSystem(`no peer [${index}] — type /online to see who's here`); return; }
-    const contact = (peer as KnownPeer & { _contact?: Contact })._contact
-      ?? { deviceId: peer.deviceId, nickname: peer.nickname, publicKey: new Uint8Array(0),
-           signingPublicKey: new Uint8Array(0), trustState: 'unverified' as const,
-           firstSeenAt: Date.now(), lastSeenAt: Date.now() };
+    const contact: Contact = {
+      deviceId: peer.deviceId,
+      nickname: peer.nickname,
+      publicKey: peer.publicKey,
+      signingPublicKey: peer.publicKey,
+      trustState: 'unverified',
+      firstSeenAt: Date.now(),
+      lastSeenAt: Date.now(),
+    };
     setActivePeer(contact);
     activePeerRef.current = contact;
     setView('chat');
