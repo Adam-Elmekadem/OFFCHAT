@@ -108,7 +108,7 @@ export class LanTransport extends EventEmitter implements ITransport {
     });
   }
 
-  private handleIncoming(socket: Socket): void {
+  private attachReceiver(socket: Socket): void {
     let buf = Buffer.alloc(0);
     let channelRegistered = false;
 
@@ -123,8 +123,8 @@ export class LanTransport extends EventEmitter implements ITransport {
           const envelope = deserializeEnvelope(payload);
           const knownPeer = this.discoveredPeers.get(envelope.senderDeviceId);
 
-          // Register the inbound socket as a bidirectional channel so the
-          // receiver can reply without opening a second TCP connection.
+          // Register socket as bidirectional channel on first message so the
+          // peer can reply without opening a second TCP connection.
           if (!channelRegistered && knownPeer && !this.peers.has(envelope.senderDeviceId)) {
             const conn = { info: knownPeer, socket };
             this.peers.set(envelope.senderDeviceId, conn);
@@ -147,6 +147,10 @@ export class LanTransport extends EventEmitter implements ITransport {
     });
   }
 
+  private handleIncoming(socket: Socket): void {
+    this.attachReceiver(socket);
+  }
+
   private async getOrConnect(peerId: string): Promise<PeerConnection> {
     const existing = this.peers.get(peerId);
     if (existing) return existing;
@@ -162,6 +166,7 @@ export class LanTransport extends EventEmitter implements ITransport {
         const conn: PeerConnection = { info: peer, socket };
         this.peers.set(peerId, conn);
         socket.on('close', () => this.peers.delete(peerId));
+        this.attachReceiver(socket); // listen for replies on this outbound socket
         resolve(conn);
       });
       socket.on('error', reject);
