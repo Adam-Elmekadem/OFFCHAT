@@ -55,7 +55,7 @@ jobs:
 
       - name: Compile Windows EXE
         working-directory: apps/cli
-        run: bun build bundle.mjs --compile --outfile=offchat-win-x64.exe
+        run: bun build bundle.mjs --compile --target=bun-windows-x64 --outfile=offchat-win-x64.exe
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
@@ -99,11 +99,17 @@ jobs:
             | Windows x64 | `offchat-win-x64.exe` | ${{ steps.size.outputs.mb }} MB |
             | Android | Coming soon | — |
 
-            ### Install
-            **Windows:** Download the `.exe` and run it in any terminal:
+            ### Install — Windows
+
+            1. Click **offchat-win-x64.exe** above to download
+            2. **If Chrome/Edge warns "can't be downloaded safely":**
+               - Chrome: click the ⋮ menu next to the warning → **Keep** → **Keep anyway**
+               - Edge: click **...** → **Keep** → **Show more** → **Keep anyway**
+            3. Open a terminal (PowerShell or CMD) in your Downloads folder and run:
             ```
-            offchat-win-x64.exe YourName
+            .\offchat-win-x64.exe YourName
             ```
+            > The app is unsigned (no certificate yet). Windows SmartScreen will warn on first run — click **More info → Run anyway**.
 
   # ── 3. Update website & deploy to GitHub Pages ────────
   deploy-website:
