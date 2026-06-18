@@ -9,3 +9,4 @@ coverage/
 *.db-wal
 offchat-identity.json
 .claude/
+branding/offchat.ico

@@ -15,12 +15,55 @@ env:
   TAG: ${{ github.ref_name }}
 
 jobs:
+  # ── 0. Generate app icon (SVG → multi-size ICO) ───────
+  generate-icon:
+    name: Generate App Icon
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SVG + ICO tools
+        run: sudo apt-get install -y librsvg2-bin imagemagick
+
+      - name: Render SVG to PNG at each required size
+        run: |
+          SVG=branding/SVG/offchat_icon.svg
+          for SIZE in 16 24 32 48 64 128 256; do
+            rsvg-convert -w $SIZE -h $SIZE "$SVG" -o /tmp/icon_${SIZE}.png
+          done
+
+      - name: Pack PNGs into ICO
+        run: |
+          convert \
+            /tmp/icon_256.png \
+            /tmp/icon_128.png \
+            /tmp/icon_64.png  \
+            /tmp/icon_48.png  \
+            /tmp/icon_32.png  \
+            /tmp/icon_24.png  \
+            /tmp/icon_16.png  \
+            branding/offchat.ico
+
+      - name: Upload ICO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-icon
+          path: branding/offchat.ico
+          retention-days: 1
+
   # ── 1. Build Windows EXE ──────────────────────────────
   build-windows:
     name: Build Windows EXE
+    needs: generate-icon
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download app icon
+        uses: actions/download-artifact@v4
+        with:
+          name: app-icon
+          path: branding
 
       - uses: pnpm/action-setup@v4
 
@@ -55,7 +98,7 @@ jobs:
 
       - name: Compile Windows EXE
         working-directory: apps/cli
-        run: bun build bundle.mjs --compile --target=bun-windows-x64 --outfile=offchat-win-x64.exe
+        run: bun build bundle.mjs --compile --target=bun-windows-x64 --windows-icon=../../branding/offchat.ico --outfile=offchat-win-x64.exe
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
