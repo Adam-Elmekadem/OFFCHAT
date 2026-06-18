@@ -6,6 +6,7 @@ import { FileDiscovery } from './FileDiscovery.js';
 import type { ITransport, Envelope, PeerInfo } from '@offchat/domain';
 
 const SCORE = 60;
+const PEER_TTL_MS = 10_000; // ~3 missed 3-second broadcasts
 
 interface PeerConnection {
   info: PeerInfo;
@@ -21,6 +22,8 @@ export class LanTransport extends EventEmitter implements ITransport {
   private readonly peers = new Map<string, PeerConnection>();
   private receiveHandler?: (envelope: Envelope, from: PeerInfo) => Promise<void>;
   private readonly discoveredPeers = new Map<string, PeerInfo>();
+  private readonly peerLastSeen = new Map<string, number>();
+  private expireTimer: ReturnType<typeof setInterval> | null = null;
   private tcpPort = 0;
 
   constructor(
@@ -36,6 +39,7 @@ export class LanTransport extends EventEmitter implements ITransport {
     await this.startTcpServer();
 
     const onPeer = (p: { deviceId: string; nickname: string; address: string; tcpPort: number; publicKey: string }) => {
+      this.peerLastSeen.set(p.deviceId, Date.now()); // refresh heartbeat on every broadcast
       if (this.discoveredPeers.has(p.deviceId)) return;
       const peerInfo: PeerInfo = {
         deviceId: p.deviceId,
@@ -58,15 +62,32 @@ export class LanTransport extends EventEmitter implements ITransport {
     this.lanDiscovery.on('peer', onPeer);
     this.lanDiscovery.on('error', () => { /* non-fatal if UDP unavailable */ });
     this.lanDiscovery.start();
+
+    // Expire peers that have missed ~3 broadcasts
+    this.expireTimer = setInterval(() => this.expireStale(), 5_000);
   }
 
   async stop(): Promise<void> {
+    if (this.expireTimer) clearInterval(this.expireTimer);
     this.fileDiscovery?.stop();
     this.lanDiscovery?.stop();
     for (const { socket } of this.peers.values()) socket.destroy();
     this.peers.clear();
     await new Promise<void>(res => this.server?.close(() => res()));
     this.server = null;
+  }
+
+  private expireStale(): void {
+    const now = Date.now();
+    for (const [deviceId, lastSeen] of this.peerLastSeen) {
+      if (now - lastSeen > PEER_TTL_MS) {
+        this.peerLastSeen.delete(deviceId);
+        this.discoveredPeers.delete(deviceId);
+        const conn = this.peers.get(deviceId);
+        if (conn) { conn.socket.destroy(); this.peers.delete(deviceId); }
+        this.emit('peer-lost', deviceId);
+      }
+    }
   }
 
   async send(peerId: string, envelope: Envelope): Promise<void> {

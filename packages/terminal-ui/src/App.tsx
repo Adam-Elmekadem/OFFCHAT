@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Box, useStdout, useInput } from 'ink';
+import { Box, Text, useStdout, useInput } from 'ink';
 import { StatusBar } from './components/StatusBar.js';
 import { ChatPane } from './components/ChatPane.js';
 import { InputBar } from './components/InputBar.js';
 import { PeerListPane } from './components/PeerListPane.js';
-import { ThemeContext } from './ThemeContext.js';
+import { ThemeContext, useTheme } from './ThemeContext.js';
 import { THEMES } from './theme.js';
 import type { ThemeId } from './theme.js';
 import type { KnownPeer } from './components/PeerListPane.js';
@@ -27,6 +27,25 @@ interface Props {
   receiveMessage: ReceiveMessage;
   onEvent: (e: AppEvent) => void;
   onReady: (inbound: (e: AppEvent) => void) => void;
+}
+
+function SysLog({ messages }: { messages: ChatMessage[] }) {
+  const t = useTheme();
+  const recent = messages.slice(-6);
+  if (!recent.length) return null;
+  return (
+    <Box flexDirection="column" paddingX={1} borderStyle="single" borderLeft={false} borderRight={false} borderBottom={false}>
+      {recent.map(msg => {
+        const ts = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return (
+          <Box key={msg.id}>
+            <Text color={t.dim} dimColor={t.useDimColor}>[{ts}] </Text>
+            <Text color={t.sysMsg}>{msg.text}</Text>
+          </Box>
+        );
+      })}
+    </Box>
+  );
 }
 
 export function App({ nickname, deviceId, commandParser, sendMessage, receiveMessage, onEvent, onReady }: Props) {
@@ -100,6 +119,15 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
       }
       if (event.type === 'nick-changed') {
         addSystem(`nickname changed to ${event.nickname}`);
+      }
+      if (event.type === 'peer-lost') {
+        setKnownPeers(prev => {
+          const peer = prev.find(p => p.deviceId === event.deviceId);
+          if (peer?.isOnline) addSystem(`${peer.nickname} went offline`);
+          return prev.map(p =>
+            p.deviceId === event.deviceId ? { ...p, isOnline: false } : p,
+          );
+        });
       }
     });
 
@@ -228,10 +256,14 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
           unreadTotal={totalUnread}
           activePeer={view === 'chat' ? activePeer?.nickname : undefined}
         />
-        {view === 'peers'
-          ? <PeerListPane peers={knownPeers} />
-          : <ChatPane messages={currentMessages} />
-        }
+        {view === 'peers' ? (
+          <>
+            <PeerListPane peers={knownPeers} />
+            <SysLog messages={messagesByPeer['system'] ?? []} />
+          </>
+        ) : (
+          <ChatPane messages={currentMessages} />
+        )}
         <InputBar
           value={input}
           activePeer={prompt ?? null}

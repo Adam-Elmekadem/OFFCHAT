@@ -88,6 +88,10 @@ export async function buildContainer(
     emit({ type: 'peer-found', deviceId: peer.deviceId, nickname: peer.nickname, transport: peer.transport, contact });
   });
 
+  lanTransport.on('peer-lost', (deviceId: string) => {
+    emit({ type: 'peer-lost', deviceId });
+  });
+
   const cmdRegistry = new CommandRegistry();
   const cmdContext: CommandContext = {
     identity,
