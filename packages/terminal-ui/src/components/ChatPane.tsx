@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../ThemeContext.js';
 
 export interface ChatMessage {
   id: string;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function ChatPane({ messages }: Props) {
+  const t = useTheme();
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={1} overflowY="hidden">
       {messages.map(msg => (
@@ -25,6 +27,7 @@ export function ChatPane({ messages }: Props) {
 }
 
 function MessageRow({ msg }: { msg: ChatMessage }) {
+  const t = useTheme();
   const ts = new Date(msg.timestamp).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
@@ -33,17 +36,17 @@ function MessageRow({ msg }: { msg: ChatMessage }) {
   if (msg.isSystem) {
     return (
       <Box>
-        <Text dimColor>[{ts}] </Text>
-        <Text color="yellow" italic>{msg.text}</Text>
+        <Text color={t.dim} dimColor={t.useDimColor}>[{ts}] </Text>
+        <Text color={t.sysMsg} italic>{msg.text}</Text>
       </Box>
     );
   }
 
   return (
     <Box>
-      <Text dimColor>[{ts}] </Text>
-      <Text color={msg.isOwn ? 'cyan' : 'magenta'} bold>{msg.sender}</Text>
-      <Text>: {msg.text}</Text>
+      <Text color={t.dim} dimColor={t.useDimColor}>[{ts}] </Text>
+      <Text color={msg.isOwn ? t.ownMsg : t.peerMsg} bold>{msg.sender}</Text>
+      <Text color={t.text}>: {msg.text}</Text>
     </Box>
   );
 }

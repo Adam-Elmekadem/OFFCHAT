@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import TextInput from 'ink-text-input';
+import { useTheme } from '../ThemeContext.js';
 
 interface Props {
   value: string;
@@ -11,13 +12,14 @@ interface Props {
 }
 
 export function InputBar({ value, activePeer, onChange, onSubmit, hint }: Props) {
-  const prompt = activePeer ? `→ ${activePeer}` : 'OFFCHAT';
+  const t = useTheme();
+  const promptLabel = activePeer ? `→ ${activePeer}` : 'OFFCHAT';
   return (
     <Box borderStyle="single" borderTop={false} paddingX={1}>
-      <Text color="greenBright" bold>{prompt}</Text>
-      <Text> › </Text>
+      <Text color={t.prompt} bold>{promptLabel}</Text>
+      <Text color={t.dim}> › </Text>
       <TextInput value={value} onChange={onChange} onSubmit={onSubmit} />
-      {hint && <Text dimColor>  [{hint}]</Text>}
+      {hint && <Text color={t.dim} dimColor={t.useDimColor}>  [{hint}]</Text>}
     </Box>
   );
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
+import { useTheme } from '../ThemeContext.js';
 
 interface Props {
   nickname: string;
@@ -11,31 +12,32 @@ interface Props {
 }
 
 export function StatusBar({ nickname, deviceId, peerCount, transport, unreadTotal, activePeer }: Props) {
+  const t = useTheme();
   const shortId = deviceId.slice(0, 8);
   return (
     <Box borderStyle="single" borderBottom={false} paddingX={1}>
-      <Text bold color="greenBright">OFFCHAT</Text>
-      <Text> │ </Text>
-      <Text color="cyan">{nickname}</Text>
-      <Text dimColor> [{shortId}]</Text>
-      <Text> │ </Text>
-      <Text color={peerCount > 0 ? 'green' : 'yellow'}>
+      <Text bold color={t.accent}>OFFCHAT</Text>
+      <Text color={t.dim}> │ </Text>
+      <Text color={t.prompt}>{nickname}</Text>
+      <Text color={t.dim}> [{shortId}]</Text>
+      <Text color={t.dim}> │ </Text>
+      <Text color={peerCount > 0 ? t.dotOnline : t.sysMsg}>
         {peerCount} peer{peerCount !== 1 ? 's' : ''}
       </Text>
       {unreadTotal != null && unreadTotal > 0 && (
         <>
-          <Text> │ </Text>
-          <Text color="greenBright" bold>+{unreadTotal} unread</Text>
+          <Text color={t.dim}> │ </Text>
+          <Text color={t.unread} bold>+{unreadTotal} unread</Text>
         </>
       )}
       {activePeer && (
         <>
-          <Text> │ </Text>
-          <Text color="magenta">→ {activePeer}</Text>
+          <Text color={t.dim}> │ </Text>
+          <Text color={t.peerMsg}>→ {activePeer}</Text>
         </>
       )}
-      <Text> │ </Text>
-      <Text dimColor>{transport}</Text>
+      <Text color={t.dim}> │ </Text>
+      <Text color={t.dim}>{transport}</Text>
     </Box>
   );
 }

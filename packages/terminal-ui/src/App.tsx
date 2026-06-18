@@ -5,6 +5,9 @@ import { StatusBar } from './components/StatusBar.js';
 import { ChatPane } from './components/ChatPane.js';
 import { InputBar } from './components/InputBar.js';
 import { PeerListPane } from './components/PeerListPane.js';
+import { ThemeContext } from './ThemeContext.js';
+import { THEMES } from './theme.js';
+import type { ThemeId } from './theme.js';
 import type { KnownPeer } from './components/PeerListPane.js';
 import type { ChatMessage } from './components/ChatPane.js';
 import type { CommandParser } from '@offchat/command-engine';
@@ -28,6 +31,15 @@ interface Props {
 
 export function App({ nickname, deviceId, commandParser, sendMessage, receiveMessage, onEvent, onReady }: Props) {
   const { stdout } = useStdout();
+  const [themeId, setThemeId] = useState<ThemeId>('default');
+  const theme = THEMES[themeId] ?? THEMES['default']!;
+
+  // Write ANSI background-color code directly to stdout so the terminal's
+  // own background fills areas Ink doesn't paint (padding, empty space).
+  useEffect(() => {
+    process.stdout.write(theme.bgAnsi ?? '\x1b[49m');
+    return () => { process.stdout.write('\x1b[49m\x1b[0m'); };
+  }, [theme.bgAnsi]);
   const [view, setView] = useState<View>('peers');
   const [input, setInput] = useState('');
   const [knownPeers, setKnownPeers] = useState<KnownPeer[]>([]);
@@ -148,8 +160,21 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
     }
 
     if (trimmed.startsWith('/')) {
-      // /back goes to peer list from anywhere
       if (trimmed === '/back' || trimmed === '/b') { setView('peers'); return; }
+      // /theme <id>  — switch colour theme
+      if (trimmed.startsWith('/theme')) {
+        const arg = trimmed.slice(6).trim();
+        if (!arg) {
+          const names = Object.keys(THEMES).join(', ');
+          addSystem(`themes: ${names}  — current: ${themeId}`);
+        } else if (THEMES[arg]) {
+          setThemeId(arg as ThemeId);
+          addSystem(`theme switched to "${THEMES[arg]!.label}"`);
+        } else {
+          addSystem(`unknown theme "${arg}" — available: ${Object.keys(THEMES).join(', ')}`);
+        }
+        return;
+      }
       const result = await commandParser.parse(trimmed);
       if (result.output) addSystem(result.output);
       if (!result.error && trimmed.startsWith('/exit')) onEvent({ type: 'exit' });
@@ -193,26 +218,28 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
   const prompt = view === 'chat' && activePeer ? activePeer.nickname : undefined;
 
   return (
-    <Box flexDirection="column" height={stdout.rows}>
-      <StatusBar
-        nickname={nickname}
-        deviceId={deviceId}
-        peerCount={knownPeers.filter(p => p.isOnline).length}
-        transport="LAN"
-        unreadTotal={totalUnread}
-        activePeer={view === 'chat' ? activePeer?.nickname : undefined}
-      />
-      {view === 'peers'
-        ? <PeerListPane peers={knownPeers} />
-        : <ChatPane messages={currentMessages} />
-      }
-      <InputBar
-        value={input}
-        activePeer={prompt ?? null}
-        onChange={setInput}
-        onSubmit={handleSubmit}
-        hint={view === 'peers' ? 'number or /command' : 'message · Esc to go back'}
-      />
-    </Box>
+    <ThemeContext.Provider value={theme}>
+      <Box flexDirection="column" height={stdout.rows} width={stdout.columns}>
+        <StatusBar
+          nickname={nickname}
+          deviceId={deviceId}
+          peerCount={knownPeers.filter(p => p.isOnline).length}
+          transport="LAN"
+          unreadTotal={totalUnread}
+          activePeer={view === 'chat' ? activePeer?.nickname : undefined}
+        />
+        {view === 'peers'
+          ? <PeerListPane peers={knownPeers} />
+          : <ChatPane messages={currentMessages} />
+        }
+        <InputBar
+          value={input}
+          activePeer={prompt ?? null}
+          onChange={setInput}
+          onSubmit={handleSubmit}
+          hint={view === 'peers' ? 'number or /command' : 'message · Esc · /theme'}
+        />
+      </Box>
+    </ThemeContext.Provider>
   );
 }
