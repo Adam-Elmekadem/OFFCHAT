@@ -17,19 +17,28 @@ export interface AnnouncePacket {
   nickname: string;
   tcpPort: number;
   publicKey: string;
+  status?: string | undefined;
+  bio?: string | undefined;
 }
 
 export class LanDiscovery extends EventEmitter {
   private socket: Socket | null = null;
   private announceTimer: ReturnType<typeof setInterval> | null = null;
+  private profile: { status: string; bio: string };
 
   constructor(
     private readonly deviceId: string,
     private readonly nickname: string,
     private readonly tcpPort: number,
     private readonly publicKeyHex: string,
+    profile?: { status?: string; bio?: string },
   ) {
     super();
+    this.profile = { status: profile?.status ?? 'online', bio: profile?.bio ?? '' };
+  }
+
+  setProfile(profile: { status: string; bio: string }): void {
+    this.profile = profile;
   }
 
   start(): void {
@@ -72,6 +81,8 @@ export class LanDiscovery extends EventEmitter {
       nickname: this.nickname,
       tcpPort: this.tcpPort,
       publicKey: this.publicKeyHex,
+      status: this.profile.status,
+      ...(this.profile.bio ? { bio: this.profile.bio } : {}),
     };
     const buf = Buffer.from(JSON.stringify(packet));
 

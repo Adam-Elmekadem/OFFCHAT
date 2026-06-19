@@ -4,7 +4,7 @@ export type { Contact, TrustState } from './entities/Contact.js';
 export type { Room } from './entities/Room.js';
 export type { Device, TransportType } from './entities/Device.js';
 
-export type { ITransport, PeerInfo } from './ports/ITransport.js';
+export type { ITransport, PeerInfo, PeerStatus } from './ports/ITransport.js';
 export type { IStorage } from './ports/IStorage.js';
 export type { ICrypto, KeyPair, EncryptResult } from './ports/ICrypto.js';
 

@@ -7,4 +7,6 @@ export { ConnectCommand } from './commands/ConnectCommand.js';
 export { HistoryCommand } from './commands/HistoryCommand.js';
 export { ClearCommand } from './commands/ClearCommand.js';
 export { ExitCommand } from './commands/ExitCommand.js';
+export { StatusCommand } from './commands/StatusCommand.js';
+export { BioCommand } from './commands/BioCommand.js';
 export type { ICommand, CommandContext, CommandResult, AppEvent } from './CommandRegistry.js';

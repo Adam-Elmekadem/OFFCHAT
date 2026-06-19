@@ -108,8 +108,17 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
             isOnline: true,
             unreadCount: 0,
             publicKey: event.contact.publicKey,
+            status: (event.status ?? 'online') as 'online' | 'away' | 'busy',
+            ...(event.bio != null ? { bio: event.bio } : {}),
           }];
         });
+      }
+      if (event.type === 'peer-updated') {
+        setKnownPeers(prev => prev.map(p =>
+          p.deviceId === event.deviceId
+            ? { ...p, status: event.status as 'online' | 'away' | 'busy', ...(event.bio != null ? { bio: event.bio } : {}) }
+            : p,
+        ));
       }
       if (event.type === 'peer-connected') {
         setActivePeer(event.contact);

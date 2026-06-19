@@ -14,20 +14,29 @@ interface PeerFile {
   tcpPort: number;
   publicKey: string;
   updatedAt: number;
+  status?: string | undefined;
+  bio?: string | undefined;
 }
 
 export class FileDiscovery extends EventEmitter {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly myFile: string;
+  private profile: { status: string; bio: string };
 
   constructor(
     private readonly deviceId: string,
     private readonly nickname: string,
     private readonly tcpPort: number,
     private readonly publicKeyHex: string,
+    profile?: { status?: string; bio?: string },
   ) {
     super();
     this.myFile = join(PEERS_DIR, `${deviceId}.json`);
+    this.profile = { status: profile?.status ?? 'online', bio: profile?.bio ?? '' };
+  }
+
+  setProfile(profile: { status: string; bio: string }): void {
+    this.profile = profile;
   }
 
   start(): void {
@@ -53,6 +62,8 @@ export class FileDiscovery extends EventEmitter {
       tcpPort: this.tcpPort,
       publicKey: this.publicKeyHex,
       updatedAt: Date.now(),
+      status: this.profile.status,
+      ...(this.profile.bio ? { bio: this.profile.bio } : {}),
     };
     writeFileSync(this.myFile, JSON.stringify(entry));
   }

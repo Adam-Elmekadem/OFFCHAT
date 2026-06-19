@@ -1,12 +1,16 @@
 import type { Envelope } from '../entities/Envelope.js';
 import type { TransportType } from '../entities/Device.js';
 
+export type PeerStatus = 'online' | 'away' | 'busy';
+
 export interface PeerInfo {
   deviceId: string;
   nickname: string;
   address: string;
   transport: TransportType;
   publicKey: Uint8Array;
+  status?: PeerStatus | undefined;
+  bio?: string | undefined;
 }
 
 export interface ITransport {

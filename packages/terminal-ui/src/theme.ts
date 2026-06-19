@@ -14,6 +14,8 @@ export interface Theme {
   prompt: string;
   numKey: string;
   dotOnline: string;
+  dotAway: string;
+  dotBusy: string;
   dotOffline: string;
   unread: string;
   border: string;
@@ -36,6 +38,8 @@ export const THEMES: Record<string, Theme> = {
     prompt: 'greenBright',
     numKey: 'yellow',
     dotOnline: 'green',
+    dotAway: 'yellow',
+    dotBusy: 'red',
     dotOffline: 'gray',
     unread: 'greenBright',
     border: 'gray',
@@ -56,6 +60,8 @@ export const THEMES: Record<string, Theme> = {
     prompt: 'yellowBright',
     numKey: 'whiteBright',
     dotOnline: 'greenBright',
+    dotAway: 'yellowBright',
+    dotBusy: 'redBright',
     dotOffline: 'white',
     unread: 'yellowBright',
     border: 'white',

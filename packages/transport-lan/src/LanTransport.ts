@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { serializeEnvelope, deserializeEnvelope } from '@offchat/protocol';
 import { LanDiscovery } from './LanDiscovery.js';
 import { FileDiscovery } from './FileDiscovery.js';
-import type { ITransport, Envelope, PeerInfo } from '@offchat/domain';
+import type { ITransport, Envelope, PeerInfo, PeerStatus } from '@offchat/domain';
 
 const SCORE = 60;
 const PEER_TTL_MS = 10_000; // ~3 missed 3-second broadcasts
@@ -25,40 +25,64 @@ export class LanTransport extends EventEmitter implements ITransport {
   private readonly peerLastSeen = new Map<string, number>();
   private expireTimer: ReturnType<typeof setInterval> | null = null;
   private tcpPort = 0;
+  private currentProfile: { status: string; bio: string };
 
   constructor(
     private readonly deviceId: string,
     private readonly nickname: string,
     private readonly publicKeyHex: string,
     private readonly publicKey: Uint8Array,
+    profile?: { status?: string; bio?: string },
   ) {
     super();
+    this.currentProfile = { status: profile?.status ?? 'online', bio: profile?.bio ?? '' };
+  }
+
+  setProfile(profile: { status: string; bio: string }): void {
+    this.currentProfile = profile;
+    this.lanDiscovery?.setProfile(profile);
+    this.fileDiscovery?.setProfile(profile);
   }
 
   async start(): Promise<void> {
     await this.startTcpServer();
 
-    const onPeer = (p: { deviceId: string; nickname: string; address: string; tcpPort: number; publicKey: string }) => {
+    const onPeer = (p: { deviceId: string; nickname: string; address: string; tcpPort: number; publicKey: string; status?: string; bio?: string }) => {
       this.peerLastSeen.set(p.deviceId, Date.now()); // refresh heartbeat on every broadcast
-      if (this.discoveredPeers.has(p.deviceId)) return;
+
+      const existing = this.discoveredPeers.get(p.deviceId);
+      if (existing) {
+        // Update status/bio if changed so peers see real-time status changes
+        const newStatus = (p.status ?? 'online') as PeerStatus;
+        const newBio = p.bio;
+        if (existing.status !== newStatus || existing.bio !== newBio) {
+          existing.status = newStatus;
+          if (newBio != null) existing.bio = newBio; else delete existing.bio;
+          this.emit('peer-updated', { deviceId: p.deviceId, status: newStatus, ...(newBio != null ? { bio: newBio } : {}) });
+        }
+        return;
+      }
+
       const peerInfo: PeerInfo = {
         deviceId: p.deviceId,
         nickname: p.nickname,
         address: `${p.address}:${p.tcpPort}`,
         transport: 'lan',
         publicKey: Buffer.from(p.publicKey, 'hex'),
+        status: (p.status ?? 'online') as PeerStatus,
+        ...(p.bio != null ? { bio: p.bio } : {}),
       };
       this.discoveredPeers.set(p.deviceId, peerInfo);
       this.emit('peer-discovered', peerInfo);
     };
 
     // File-based: same-machine peers (guaranteed on Windows)
-    this.fileDiscovery = new FileDiscovery(this.deviceId, this.nickname, this.tcpPort, this.publicKeyHex);
+    this.fileDiscovery = new FileDiscovery(this.deviceId, this.nickname, this.tcpPort, this.publicKeyHex, this.currentProfile);
     this.fileDiscovery.on('peer', onPeer);
     this.fileDiscovery.start();
 
     // UDP broadcast: peers on other machines on the same LAN
-    this.lanDiscovery = new LanDiscovery(this.deviceId, this.nickname, this.tcpPort, this.publicKeyHex);
+    this.lanDiscovery = new LanDiscovery(this.deviceId, this.nickname, this.tcpPort, this.publicKeyHex, this.currentProfile);
     this.lanDiscovery.on('peer', onPeer);
     this.lanDiscovery.on('error', () => { /* non-fatal if UDP unavailable */ });
     this.lanDiscovery.start();

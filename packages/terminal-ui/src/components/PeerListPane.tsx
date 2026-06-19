@@ -9,6 +9,8 @@ export interface KnownPeer {
   isOnline: boolean;
   unreadCount: number;
   publicKey: Uint8Array;
+  status?: 'online' | 'away' | 'busy' | undefined;
+  bio?: string | undefined;
   lastMessage?: string;
   lastMessageAt?: number;
 }
@@ -39,7 +41,7 @@ export function PeerListPane({ peers }: Props) {
         <PeerRow key={peer.deviceId} index={i + 1} peer={peer} />
       ))}
       <Box marginTop={1}>
-        <Text color={t.dim} dimColor={t.useDimColor}>type a number to chat  ·  /help for commands  ·  /theme old-blue to switch theme</Text>
+        <Text color={t.dim} dimColor={t.useDimColor}>type a number to chat  ·  /help for commands  ·  /status away|busy|online  ·  /bio &lt;text&gt;</Text>
       </Box>
     </Box>
   );
@@ -47,27 +49,46 @@ export function PeerListPane({ peers }: Props) {
 
 function PeerRow({ index, peer }: { index: number; peer: KnownPeer }) {
   const t = useTheme();
-  const dot = peer.isOnline ? '●' : '○';
-  const dotColor = peer.isOnline ? t.dotOnline : t.dotOffline;
+
+  let dot: string;
+  let dotColor: string;
+  if (!peer.isOnline) {
+    dot = '○';
+    dotColor = t.dotOffline;
+  } else {
+    switch (peer.status) {
+      case 'away': dot = '◐'; dotColor = t.dotAway; break;
+      case 'busy': dot = '◉'; dotColor = t.dotBusy; break;
+      default:     dot = '●'; dotColor = t.dotOnline; break;
+    }
+  }
+
   const ts = peer.lastMessageAt
     ? new Date(peer.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
 
   return (
-    <Box marginBottom={1}>
-      <Text color={t.numKey} bold>[{index}]</Text>
-      <Text>  </Text>
-      <Text color={dotColor}>{dot} </Text>
-      <Text bold color={t.heading}>{peer.nickname.padEnd(14)}</Text>
-      <Text color={t.dim} dimColor={t.useDimColor}>{peer.transport}</Text>
-      {peer.unreadCount > 0 && (
-        <Text color={t.unread} bold>  +{peer.unreadCount} new</Text>
-      )}
-      {peer.lastMessage != null && (
-        <Text color={t.dim} dimColor={t.useDimColor}>
-          {'  '}"{peer.lastMessage.slice(0, 28)}{peer.lastMessage.length > 28 ? '…' : '"'}
-          {ts ? `  ${ts}` : ''}
-        </Text>
+    <Box flexDirection="column" marginBottom={1}>
+      <Box>
+        <Text color={t.numKey} bold>[{index}]</Text>
+        <Text>  </Text>
+        <Text color={dotColor}>{dot} </Text>
+        <Text bold color={t.heading}>{peer.nickname.padEnd(14)}</Text>
+        <Text color={t.dim} dimColor={t.useDimColor}>{peer.transport}</Text>
+        {peer.unreadCount > 0 && (
+          <Text color={t.unread} bold>  +{peer.unreadCount} new</Text>
+        )}
+        {peer.lastMessage != null && (
+          <Text color={t.dim} dimColor={t.useDimColor}>
+            {'  '}"{peer.lastMessage.slice(0, 28)}{peer.lastMessage.length > 28 ? '…' : '"'}
+            {ts ? `  ${ts}` : ''}
+          </Text>
+        )}
+      </Box>
+      {peer.bio != null && peer.bio !== '' && (
+        <Box paddingLeft={7}>
+          <Text color={t.dim} dimColor={t.useDimColor}>{peer.bio}</Text>
+        </Box>
       )}
     </Box>
   );
