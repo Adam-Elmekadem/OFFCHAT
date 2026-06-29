@@ -9,6 +9,7 @@ function makeEnvelope(overrides: Partial<Envelope> = {}): Envelope {
     timestampUtc: Date.now(),
     senderDeviceId: 'device-a',
     senderNickname: 'alice',
+    recipientDeviceId: 'device-b',
     chatScope: 'dm',
     roomId: null,
     messageType: 'text',

@@ -5,6 +5,8 @@ import { StatusBar } from './components/StatusBar.js';
 import { ChatPane } from './components/ChatPane.js';
 import { InputBar } from './components/InputBar.js';
 import { PeerListPane } from './components/PeerListPane.js';
+import { CallBar } from './components/CallBar.js';
+import type { CallState } from './components/CallBar.js';
 import { ThemeContext, useTheme } from './ThemeContext.js';
 import { THEMES } from './theme.js';
 import type { ThemeId } from './theme.js';
@@ -53,25 +55,27 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
   const [themeId, setThemeId] = useState<ThemeId>('default');
   const theme = THEMES[themeId] ?? THEMES['default']!;
 
-  // Write ANSI background-color code directly to stdout so the terminal's
-  // own background fills areas Ink doesn't paint (padding, empty space).
   useEffect(() => {
     process.stdout.write(theme.bgAnsi ?? '\x1b[49m');
     return () => { process.stdout.write('\x1b[49m\x1b[0m'); };
   }, [theme.bgAnsi]);
+
   const [view, setView] = useState<View>('peers');
   const [input, setInput] = useState('');
   const [knownPeers, setKnownPeers] = useState<KnownPeer[]>([]);
   const [activePeer, setActivePeer] = useState<Contact | null>(null);
-  // messages keyed by deviceId; 'system' for global system messages
   const [messagesByPeer, setMessagesByPeer] = useState<Record<string, ChatMessage[]>>({ system: [] });
+  const [callState, setCallState] = useState<CallState>('idle');
+  const [callPeerNickname, setCallPeerNickname] = useState<string | undefined>(undefined);
+  const [ptt, setPtt] = useState(false);
+
   const activePeerRef = useRef<Contact | null>(null);
   activePeerRef.current = activePeer;
 
-  const addMsg = useCallback((deviceId: string, msg: ChatMessage) => {
+  const addMsg = useCallback((id: string, msg: ChatMessage) => {
     setMessagesByPeer(prev => ({
       ...prev,
-      [deviceId]: [...(prev[deviceId] ?? []).slice(-500), msg],
+      [id]: [...(prev[id] ?? []).slice(-500), msg],
     }));
   }, []);
 
@@ -82,11 +86,24 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
     });
   }, [addMsg]);
 
-  // Esc → go back to peer list
+  // Ctrl+T → push-to-talk press/release
   useInput((_input, key) => {
     if (key.escape && view === 'chat') {
       setView('peers');
       setInput('');
+      return;
+    }
+    // Ctrl+T: keyName is 't' with ctrl modifier
+    if (key.ctrl && _input === 't') {
+      if (callState === 'active') {
+        if (!ptt) {
+          setPtt(true);
+          onEvent({ type: 'call-ptt-start' });
+        } else {
+          setPtt(false);
+          onEvent({ type: 'call-ptt-stop' });
+        }
+      }
     }
   });
 
@@ -138,6 +155,17 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
           );
         });
       }
+      // ── Call events from container → UI ──────────────────────
+      if (event.type === 'call-state') {
+        setCallState(event.state);
+        setCallPeerNickname(event.peerNickname);
+        if (event.state === 'idle') { setPtt(false); }
+      }
+      if (event.type === 'call-incoming') {
+        setCallState('ringing');
+        setCallPeerNickname(event.peerNickname);
+        addSystem(`📞 Incoming call from ${event.peerNickname} — type /accept or /reject`);
+      }
     });
 
     receiveMessage.onMessage((msg: DecodedMessage) => {
@@ -152,7 +180,6 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
       };
       addMsg(senderId, chatMsg);
 
-      // If not currently chatting with this peer, increment unread count
       if (activePeerRef.current?.deviceId !== senderId) {
         setKnownPeers(prev => prev.map(p =>
           p.deviceId === senderId
@@ -178,7 +205,6 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
     setActivePeer(contact);
     activePeerRef.current = contact;
     setView('chat');
-    // Clear unread count for this peer
     setKnownPeers(prev => prev.map(p =>
       p.deviceId === peer.deviceId ? { ...p, unreadCount: 0 } : p,
     ));
@@ -190,7 +216,6 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
     const trimmed = line.trim();
     if (!trimmed) return;
 
-    // In peer list view, a bare number selects a peer
     if (view === 'peers' && /^\d+$/.test(trimmed)) {
       selectPeer(parseInt(trimmed, 10));
       return;
@@ -198,12 +223,11 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
 
     if (trimmed.startsWith('/')) {
       if (trimmed === '/back' || trimmed === '/b') { setView('peers'); return; }
-      // /theme <id>  — switch colour theme
+
       if (trimmed.startsWith('/theme')) {
         const arg = trimmed.slice(6).trim();
         if (!arg) {
-          const names = Object.keys(THEMES).join(', ');
-          addSystem(`themes: ${names}  — current: ${themeId}`);
+          addSystem(`themes: ${Object.keys(THEMES).join(', ')}  — current: ${themeId}`);
         } else if (THEMES[arg]) {
           setThemeId(arg as ThemeId);
           addSystem(`theme switched to "${THEMES[arg]!.label}"`);
@@ -212,13 +236,31 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
         }
         return;
       }
+
+      // ── Call commands handled directly in UI ─────────────────
+      if (trimmed.startsWith('/call')) {
+        const arg = trimmed.slice(5).trim();
+        const idx = parseInt(arg, 10);
+        if (!arg || isNaN(idx)) {
+          addSystem('usage: /call <peer number>');
+          return;
+        }
+        const peer = knownPeers[idx - 1];
+        if (!peer) { addSystem(`no peer [${idx}]`); return; }
+        if (!peer.isOnline) { addSystem(`${peer.nickname} is offline`); return; }
+        onEvent({ type: 'call-initiate', deviceId: peer.deviceId });
+        return;
+      }
+      if (trimmed === '/accept') { onEvent({ type: 'call-accept' }); return; }
+      if (trimmed === '/reject') { onEvent({ type: 'call-reject' }); return; }
+      if (trimmed === '/hangup') { onEvent({ type: 'call-hangup' }); return; }
+
       const result = await commandParser.parse(trimmed);
       if (result.output) addSystem(result.output);
       if (!result.error && trimmed.startsWith('/exit')) onEvent({ type: 'exit' });
       return;
     }
 
-    // Bare number in chat view → switch peer
     if (view === 'chat' && /^\d+$/.test(trimmed)) {
       selectPeer(parseInt(trimmed, 10));
       return;
@@ -244,7 +286,7 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
     } catch (err) {
       addSystem(`send failed: ${String(err)}`);
     }
-  }, [view, activePeer, addMsg, addSystem, commandParser, nickname, onEvent, selectPeer, sendMessage]);
+  }, [view, activePeer, addMsg, addSystem, commandParser, knownPeers, nickname, onEvent, selectPeer, sendMessage, themeId]);
 
   const totalUnread = knownPeers.reduce((n, p) => n + p.unreadCount, 0);
 
@@ -273,6 +315,7 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
         ) : (
           <ChatPane messages={currentMessages} />
         )}
+        <CallBar state={callState} peerNickname={callPeerNickname} ptt={ptt} />
         <InputBar
           value={input}
           activePeer={prompt ?? null}

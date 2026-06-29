@@ -10,7 +10,7 @@ const nickname = args[0] ?? process.env['USER'] ?? process.env['USERNAME'] ?? 'a
 
 let appInbound: ((e: AppEvent) => void) | null = null;
 
-function handleEvent(event: AppEvent): void {
+function emitToApp(event: AppEvent): void {
   if (event.type === 'exit') {
     process.exit(0);
   }
@@ -20,8 +20,15 @@ function handleEvent(event: AppEvent): void {
 async function main() {
   process.title = 'offchat';
 
-  const container = await buildContainer(nickname, handleEvent);
+  const container = await buildContainer(nickname, emitToApp);
   await container.router.startAll();
+
+  // Events from the UI (call-initiate, call-accept, etc.) route to container.handleEvent
+  const onUiEvent = (event: AppEvent): void => {
+    container.handleEvent(event);
+    // pass non-call events on to app (e.g. exit, system-message from commands)
+    if (!event.type.startsWith('call-')) emitToApp(event);
+  };
 
   const { unmount } = render(
     React.createElement(App, {
@@ -30,7 +37,7 @@ async function main() {
       commandParser: container.commandParser,
       sendMessage: container.sendMessage,
       receiveMessage: container.receiveMessage,
-      onEvent: handleEvent,
+      onEvent: onUiEvent,
       onReady: (inbound) => { appInbound = inbound; },
     }),
   );

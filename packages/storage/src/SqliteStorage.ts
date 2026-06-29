@@ -189,6 +189,7 @@ export class SqliteStorage implements IStorage {
         timestampUtc: envelope.timestampUtc,
         senderDeviceId: envelope.senderDeviceId,
         senderNickname: envelope.senderNickname,
+        recipientDeviceId: (envelope as { recipientDeviceId?: string }).recipientDeviceId ?? '',
         chatScope: envelope.chatScope,
         roomId: envelope.roomId,
         messageType: envelope.messageType,

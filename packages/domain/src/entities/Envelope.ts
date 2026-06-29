@@ -1,5 +1,5 @@
 export type ChatScope = 'dm' | 'room';
-export type MessageType = 'text' | 'file_meta' | 'command_event' | 'system';
+export type MessageType = 'text' | 'ack' | 'call-signal' | 'system';
 
 export interface EncryptionMetadata {
   algorithm: 'chacha20-poly1305';
@@ -13,6 +13,7 @@ export interface Envelope {
   timestampUtc: number;
   senderDeviceId: string;
   senderNickname: string;
+  recipientDeviceId: string;
   chatScope: ChatScope;
   roomId: string | null;
   messageType: MessageType;

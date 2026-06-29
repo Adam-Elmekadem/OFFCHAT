@@ -44,6 +44,7 @@ export function makeEnvelope(sender: Identity, text: string, recipient: Identity
     timestampUtc: Date.now(),
     senderDeviceId: sender.id,
     senderNickname: sender.nickname,
+    recipientDeviceId: recipient.id,
     chatScope: 'dm',
     roomId: null,
     messageType: 'text',

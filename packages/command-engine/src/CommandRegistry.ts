@@ -17,6 +17,16 @@ export type AppEvent =
   | { type: 'peer-found'; deviceId: string; nickname: string; transport: string; contact: Contact; status?: string | undefined; bio?: string | undefined }
   | { type: 'peer-updated'; deviceId: string; status: string; bio?: string | undefined }
   | { type: 'peer-lost'; deviceId: string }
+  // call events: App → Container
+  | { type: 'call-initiate'; deviceId: string }
+  | { type: 'call-accept' }
+  | { type: 'call-reject' }
+  | { type: 'call-hangup' }
+  | { type: 'call-ptt-start' }
+  | { type: 'call-ptt-stop' }
+  // call events: Container → App
+  | { type: 'call-state'; state: 'idle' | 'calling' | 'ringing' | 'active'; peerNickname?: string | undefined }
+  | { type: 'call-incoming'; peerNickname: string; peerDeviceId: string }
   | { type: 'exit' };
 
 export interface CommandResult {
