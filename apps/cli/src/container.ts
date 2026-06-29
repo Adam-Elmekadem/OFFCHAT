@@ -12,6 +12,7 @@ import {
   SendMessage,
   ReceiveMessage,
   ConnectPeer,
+  TrustContact,
 } from '@offchat/application';
 import {
   CommandRegistry,
@@ -25,6 +26,7 @@ import {
   ExitCommand,
   StatusCommand,
   BioCommand,
+  ContactsCommand,
 } from '@offchat/command-engine';
 import type { CommandContext, AppEvent } from '@offchat/command-engine';
 import type { Identity, PeerInfo } from '@offchat/domain';
@@ -84,7 +86,8 @@ export async function buildContainer(
   const router = new TransportRouter();
   const deduplicator = new MessageDeduplicator();
   const connectPeer = new ConnectPeer(storage, router);
-  const retryQueue = new RetryQueue();
+  const retryQueue  = new RetryQueue();
+  const trustContact = new TrustContact(storage);
 
   const lanTransport = new LanTransport(
     identity.id,
@@ -155,6 +158,11 @@ export async function buildContainer(
     id => emit({ type: 'system-message', text: `message ${id.slice(0, 8)} failed after 3 retries` }),
   );
 
+  // ── Unverified sender notification ──────────────────────────
+  receiveMessage.onUnverified(from => {
+    emit({ type: 'message-from-unverified', deviceId: from.deviceId, nickname: from.nickname });
+  });
+
   // ── Call signals ─────────────────────────────────────────────
   receiveMessage.onCallSignal(async (payload, from) => {
     if (typeof payload !== 'object' || payload === null) return;
@@ -219,6 +227,13 @@ export async function buildContainer(
       callManager.setPushToTalk(true);
     } else if (e.type === 'call-ptt-stop') {
       callManager.setPushToTalk(false);
+    } else if (e.type === 'peer-trust') {
+      trustContact.execute(e.deviceId, e.trustState).then(contact => {
+        if (!contact) return;
+        emit({ type: 'trust-changed', deviceId: e.deviceId, trustState: e.trustState });
+        const verb = e.trustState === 'trusted' ? 'trusted' : e.trustState === 'blocked' ? 'blocked' : 'unverified';
+        emit({ type: 'system-message', text: `${contact.nickname} marked as ${verb}` });
+      }).catch(err => emit({ type: 'system-message', text: `trust error: ${String(err)}` }));
     }
   };
 
@@ -242,6 +257,7 @@ export async function buildContainer(
   cmdRegistry.register(new ExitCommand());
   cmdRegistry.register(new StatusCommand());
   cmdRegistry.register(new BioCommand());
+  cmdRegistry.register(new ContactsCommand());
 
   const commandParser = new CommandParser(cmdRegistry, cmdContext);
 

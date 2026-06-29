@@ -27,6 +27,11 @@ export type AppEvent =
   // call events: Container → App
   | { type: 'call-state'; state: 'idle' | 'calling' | 'ringing' | 'active'; peerNickname?: string | undefined }
   | { type: 'call-incoming'; peerNickname: string; peerDeviceId: string }
+  // trust events: App → Container
+  | { type: 'peer-trust'; deviceId: string; trustState: 'trusted' | 'unverified' | 'blocked' }
+  // trust events: Container → App
+  | { type: 'trust-changed'; deviceId: string; trustState: 'trusted' | 'unverified' | 'blocked' }
+  | { type: 'message-from-unverified'; deviceId: string; nickname: string }
   | { type: 'exit' };
 
 export interface CommandResult {

@@ -69,8 +69,10 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
   const [callPeerNickname, setCallPeerNickname] = useState<string | undefined>(undefined);
   const [ptt, setPtt] = useState(false);
 
-  const activePeerRef = useRef<Contact | null>(null);
+  const activePeerRef   = useRef<Contact | null>(null);
+  const knownPeersRef   = useRef<KnownPeer[]>([]);
   activePeerRef.current = activePeer;
+  knownPeersRef.current = knownPeers;
 
   const addMsg = useCallback((id: string, msg: ChatMessage) => {
     setMessagesByPeer(prev => ({
@@ -117,7 +119,9 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
       if (event.type === 'peer-found') {
         setKnownPeers(prev => {
           if (prev.some(p => p.deviceId === event.deviceId)) return prev;
-          addSystem(`peer found: ${event.nickname} — press [${prev.length + 1}] to chat`);
+          const trustState = (event.contact.trustState ?? 'unverified') as 'trusted' | 'unverified' | 'blocked';
+          const trustHint = trustState === 'trusted' ? '' : '  /trust <n> or /block <n>';
+          addSystem(`peer found: ${event.nickname} [${trustState}]${trustHint} — press [${prev.length + 1}] to chat`);
           return [...prev, {
             deviceId: event.deviceId,
             nickname: event.nickname,
@@ -126,6 +130,7 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
             unreadCount: 0,
             publicKey: event.contact.publicKey,
             status: (event.status ?? 'online') as 'online' | 'away' | 'busy',
+            trustState,
             ...(event.bio != null ? { bio: event.bio } : {}),
           }];
         });
@@ -155,6 +160,15 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
           );
         });
       }
+      // ── Trust events from container → UI ─────────────────────
+      if (event.type === 'trust-changed') {
+        setKnownPeers(prev => prev.map(p =>
+          p.deviceId === event.deviceId ? { ...p, trustState: event.trustState } : p,
+        ));
+      }
+      if (event.type === 'message-from-unverified') {
+        addSystem(`⚠ message from unverified peer ${event.nickname} — /trust <n> to trust, /block <n> to block`);
+      }
       // ── Call events from container → UI ──────────────────────
       if (event.type === 'call-state') {
         setCallState(event.state);
@@ -170,11 +184,13 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
 
     receiveMessage.onMessage((msg: DecodedMessage) => {
       const senderId = msg.envelope.senderDeviceId;
+      const senderPeer = knownPeersRef.current.find(p => p.deviceId === senderId);
+      const unverifiedTag = senderPeer?.trustState === 'unverified' ? '[UNVERIFIED] ' : '';
       const chatMsg: ChatMessage = {
         id: msg.envelope.envelopeId,
         timestamp: msg.envelope.timestampUtc,
         sender: msg.envelope.senderNickname,
-        text: msg.text,
+        text: unverifiedTag + msg.text,
         isOwn: false,
         isSystem: false,
       };
@@ -254,6 +270,21 @@ export function App({ nickname, deviceId, commandParser, sendMessage, receiveMes
       if (trimmed === '/accept') { onEvent({ type: 'call-accept' }); return; }
       if (trimmed === '/reject') { onEvent({ type: 'call-reject' }); return; }
       if (trimmed === '/hangup') { onEvent({ type: 'call-hangup' }); return; }
+
+      // ── Trust commands handled directly in UI (need peer index) ─
+      if (trimmed.startsWith('/trust') || trimmed.startsWith('/block')) {
+        const isTrust = trimmed.startsWith('/trust');
+        const arg = trimmed.slice(isTrust ? 6 : 6).trim();
+        const idx = parseInt(arg, 10);
+        if (!arg || isNaN(idx)) {
+          addSystem(`usage: ${isTrust ? '/trust' : '/block'} <peer number>`);
+          return;
+        }
+        const peer = knownPeers[idx - 1];
+        if (!peer) { addSystem(`no peer [${idx}]`); return; }
+        onEvent({ type: 'peer-trust', deviceId: peer.deviceId, trustState: isTrust ? 'trusted' : 'blocked' });
+        return;
+      }
 
       const result = await commandParser.parse(trimmed);
       if (result.output) addSystem(result.output);

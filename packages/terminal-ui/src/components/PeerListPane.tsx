@@ -11,6 +11,7 @@ export interface KnownPeer {
   publicKey: Uint8Array;
   status?: 'online' | 'away' | 'busy' | undefined;
   bio?: string | undefined;
+  trustState?: 'trusted' | 'unverified' | 'blocked' | undefined;
   lastMessage?: string;
   lastMessageAt?: number;
 }
@@ -41,10 +42,18 @@ export function PeerListPane({ peers }: Props) {
         <PeerRow key={peer.deviceId} index={i + 1} peer={peer} />
       ))}
       <Box marginTop={1}>
-        <Text color={t.dim} dimColor={t.useDimColor}>type a number to chat  ·  /help for commands  ·  /status away|busy|online  ·  /bio &lt;text&gt;</Text>
+        <Text color={t.dim} dimColor={t.useDimColor}>
+          number to chat  ·  /trust &lt;n&gt;  /block &lt;n&gt;  /contacts  ·  /help
+        </Text>
       </Box>
     </Box>
   );
+}
+
+function trustBadge(trustState: KnownPeer['trustState']): { label: string; color: string } {
+  if (trustState === 'trusted')  return { label: '[T]', color: 'green' };
+  if (trustState === 'blocked')  return { label: '[X]', color: 'red' };
+  return { label: '[?]', color: 'yellow' };
 }
 
 function PeerRow({ index, peer }: { index: number; peer: KnownPeer }) {
@@ -63,6 +72,8 @@ function PeerRow({ index, peer }: { index: number; peer: KnownPeer }) {
     }
   }
 
+  const badge = trustBadge(peer.trustState);
+
   const ts = peer.lastMessageAt
     ? new Date(peer.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -74,7 +85,8 @@ function PeerRow({ index, peer }: { index: number; peer: KnownPeer }) {
         <Text>  </Text>
         <Text color={dotColor}>{dot} </Text>
         <Text bold color={t.heading}>{peer.nickname.padEnd(14)}</Text>
-        <Text color={t.dim} dimColor={t.useDimColor}>{peer.transport}</Text>
+        <Text color={badge.color}>{badge.label}</Text>
+        <Text color={t.dim} dimColor={t.useDimColor}>  {peer.transport}</Text>
         {peer.unreadCount > 0 && (
           <Text color={t.unread} bold>  +{peer.unreadCount} new</Text>
         )}

@@ -8,14 +8,16 @@ export interface DecodedMessage {
   from: PeerInfo;
 }
 
-export type MessageHandler    = (msg: DecodedMessage) => void;
-export type AckHandler        = (ackedEnvelopeId: string) => void;
-export type CallSignalHandler = (payload: unknown, from: PeerInfo) => void;
+export type MessageHandler      = (msg: DecodedMessage) => void;
+export type AckHandler          = (ackedEnvelopeId: string) => void;
+export type CallSignalHandler   = (payload: unknown, from: PeerInfo) => void;
+export type UnverifiedHandler   = (from: PeerInfo) => void;
 
 export class ReceiveMessage {
   private readonly textHandlers:       MessageHandler[]    = [];
   private readonly ackHandlers:        AckHandler[]        = [];
   private readonly callSignalHandlers: CallSignalHandler[] = [];
+  private readonly unverifiedHandlers: UnverifiedHandler[] = [];
 
   constructor(
     private readonly crypto: ICrypto,
@@ -24,9 +26,10 @@ export class ReceiveMessage {
     private readonly identity: Identity,
   ) {}
 
-  onMessage(handler: MessageHandler): void       { this.textHandlers.push(handler); }
-  onAck(handler: AckHandler): void               { this.ackHandlers.push(handler); }
-  onCallSignal(handler: CallSignalHandler): void { this.callSignalHandlers.push(handler); }
+  onMessage(handler: MessageHandler): void           { this.textHandlers.push(handler); }
+  onAck(handler: AckHandler): void                   { this.ackHandlers.push(handler); }
+  onCallSignal(handler: CallSignalHandler): void     { this.callSignalHandlers.push(handler); }
+  onUnverified(handler: UnverifiedHandler): void     { this.unverifiedHandlers.push(handler); }
 
   async handle(envelope: Envelope, from: PeerInfo): Promise<void> {
     const validationError = validateEnvelope(envelope);
@@ -34,6 +37,16 @@ export class ReceiveMessage {
 
     if (this.deduplicator.isDuplicate(envelope.envelopeId)) return;
     this.deduplicator.markSeen(envelope.envelopeId);
+
+    // Trust gate — always allow ack and call-signal through regardless of trust
+    if (envelope.messageType === 'text') {
+      const contact = await this.storage.getContact(envelope.senderDeviceId);
+      if (contact?.trustState === 'blocked') return; // silent drop
+      if (contact?.trustState !== 'trusted') {
+        for (const h of this.unverifiedHandlers) h(from);
+        // still deliver — user sees the message with an [UNVERIFIED] tag
+      }
+    }
 
     const plaintext = this.crypto.decrypt(
       envelope.payload,
