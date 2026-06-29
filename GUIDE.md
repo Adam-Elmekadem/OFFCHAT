@@ -397,6 +397,7 @@ This happens if the exe is on a network drive or a path Windows doesn't trust. M
 - Bluetooth transport
 - Mesh relay (chat with peers out of direct Wi-Fi range)
 - Message delivery ACKs + retry queue
+- **Voice calls** — `/call <n>`, `/accept`, `/hangup`, push-to-talk over LAN
 - Android APK
 
 ---

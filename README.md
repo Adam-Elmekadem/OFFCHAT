@@ -131,6 +131,7 @@ GitHub Actions builds a standalone Windows exe and publishes it to Releases auto
 - [ ] Bluetooth transport (Windows BLE)
 - [ ] Mesh relay — forward messages for out-of-range peers
 - [ ] Message delivery ACK + retry queue
+- [ ] Voice calls — `/call`, `/accept`, `/hangup` (push-to-talk over LAN UDP)
 - [ ] Android APK
 
 ---
